@@ -43,7 +43,7 @@
         <main>
             <!-- Home Tab -->
             <div id="registrar" class="tab-content space-y-6">
-                 <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
                     <h2 class="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">Training Next</h2>
                     <select id="exercise-select-main" class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500"></select>
                 </div>
@@ -55,7 +55,7 @@
                         </div>
                     </div>
                     <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-                         <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 mb-3">New Log</h3>
+                        <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 mb-3">New Log</h3>
                         <form id="log-form" class="space-y-4">
                             <input type="date" id="date" required class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500">
                             <div class="flex items-center gap-4">
@@ -181,7 +181,7 @@
             }
             
             function initializeFirebase(config) {
-                 try {
+                try {
                     app = initializeApp(config);
                     db = getFirestore(app);
                     auth = getAuth(app);
@@ -197,14 +197,14 @@
             async function init() {
                 applyTheme();
                 
-                let firebaseConfig = localStorage.getItem('firebaseConfig');
-                if (!firebaseConfig) {
+                let firebaseConfigStr = localStorage.getItem('firebaseConfig');
+                if (!firebaseConfigStr) {
                     globalLoader.classList.add('hidden');
                     configModal.classList.remove('hidden');
                     return;
                 }
 
-                if (initializeFirebase(JSON.parse(firebaseConfig))) {
+                if (initializeFirebase(JSON.parse(firebaseConfigStr))) {
                     try {
                         await signInAnonymously(auth);
                         userId = auth.currentUser.uid;
@@ -229,23 +229,27 @@
                 let text = configInput.value.trim();
                 configError.classList.add('hidden');
                 
-                // Extract JSON from the input
                 if (text.startsWith('const firebaseConfig =')) {
                     text = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
                 }
+                if (text.endsWith(';')) {
+                    text = text.slice(0, -1);
+                }
 
                 try {
-                    const config = JSON.parse(text);
-                    if (config.apiKey && config.projectId) {
+                    const config = new Function(`return ${text}`)();
+
+                    if (config && config.apiKey && config.projectId) {
                         localStorage.setItem('firebaseConfig', JSON.stringify(config));
                         configModal.classList.add('hidden');
                         globalLoader.classList.remove('hidden');
                         init();
                     } else {
-                        throw new Error("Missing apiKey or projectId");
+                        throw new Error("Missing apiKey or projectId in the config object.");
                     }
                 } catch (e) {
-                    configError.textContent = "Invalid JSON format. Please paste the entire object, including curly braces {}.";
+                    console.error("Config parsing error:", e);
+                    configError.textContent = "Invalid format. Please paste the Firebase config object exactly as provided by Google.";
                     configError.classList.remove('hidden');
                 }
             });
@@ -261,7 +265,7 @@
                     }
                 }, (error) => {
                     console.error("Error listening to database changes:", error);
-                     globalLoader.innerHTML = `<p class="text-red-500">Database error. Check your security rules in your Firebase project.</p>`;
+                    globalLoader.innerHTML = `<p class="text-red-500">Database error. Check your security rules in your Firebase project.</p>`;
                 });
             }
             
@@ -342,8 +346,8 @@
                     await addDoc(collection(db, workoutsCollectionPath), newEntry);
                     toastMessage.textContent = "Workout Saved!";
                     toastUndoBtn.style.display = 'none';
-                    toast.classList.remove('opacity-0', 'bg-yellow-500');
-                    toast.classList.add('bg-green-500');
+                    toast.classList.remove('opacity-0', 'bg-yellow-500', 'text-black');
+                    toast.classList.add('bg-green-500', 'text-white');
                     setTimeout(hideToast, 3000);
                     logForm.reset();
                     dateInput.valueAsDate = new Date();
@@ -363,7 +367,7 @@
                         updateAllUI();
 
                         showToast("Log deleted.", true);
-                        toast.classList.remove('bg-green-500');
+                        toast.classList.remove('bg-green-500', 'text-white');
                         toast.classList.add('bg-yellow-500', 'text-black');
 
                         clearTimeout(undoTimeout);
