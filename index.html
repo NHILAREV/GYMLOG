@@ -229,11 +229,22 @@
                 let text = configInput.value.trim();
                 configError.classList.add('hidden');
                 
-                if (text.startsWith('const firebaseConfig =')) {
-                    text = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+                if (text.includes('const firebaseConfig =')) {
+                    const startIndex = text.indexOf('{');
+                    const endIndex = text.lastIndexOf('}');
+                    if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+                        text = text.substring(startIndex, endIndex + 1);
+                    } else {
+                        configError.textContent = "Could not find the { ... } object in the pasted text.";
+                        configError.classList.remove('hidden');
+                        return;
+                    }
                 }
-                if (text.endsWith(';')) {
-                    text = text.slice(0, -1);
+                
+                if (!text.startsWith('{') || !text.endsWith('}')) {
+                     configError.textContent = "Please paste the full Firebase config object, including the curly braces {}.";
+                     configError.classList.remove('hidden');
+                     return;
                 }
 
                 try {
@@ -245,11 +256,11 @@
                         globalLoader.classList.remove('hidden');
                         init();
                     } else {
-                        throw new Error("Missing apiKey or projectId in the config object.");
+                        throw new Error("The parsed object is missing required keys like 'apiKey' or 'projectId'.");
                     }
                 } catch (e) {
                     console.error("Config parsing error:", e);
-                    configError.textContent = "Invalid format. Please paste the Firebase config object exactly as provided by Google.";
+                    configError.textContent = "Could not parse the configuration. Please check for typos and paste the object again.";
                     configError.classList.remove('hidden');
                 }
             });
