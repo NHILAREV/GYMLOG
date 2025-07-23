@@ -198,34 +198,37 @@
                 }
             }
 
-            saveConfigBtn.addEventListener('click', () => {
-                const text = configInput.value.trim();
-                configError.classList.add('hidden');
+           saveConfigBtn.addEventListener('click', () => {
+    const text = configInput.value.trim();
+    configError.classList.add('hidden');
 
-                if (!text) {
-                    configError.textContent = "Text area cannot be empty.";
-                    configError.classList.remove('hidden');
-                    return;
-                }
+    try {
+        console.log("--- INICIANDO PRUEBA ---");
+        console.log("1. Texto que se va a procesar:", `"${text}"`);
 
-                try {
-                    const config = JSON.parse(text);
+        const config = JSON.parse(text);
+        console.log("2. Objeto después de JSON.parse:", config);
+        
+        console.log("3. Valor de config.apiKey:", config.apiKey);
+        console.log("4. Valor de config.projectId:", config.projectId);
 
-                    if (config && config.apiKey && config.projectId) {
-                        localStorage.setItem('firebaseConfig', JSON.stringify(config));
-                        configModal.classList.add('hidden');
-                        globalLoader.classList.remove('hidden');
-                        init(config);
-                    } else {
-                        configError.textContent = "Configuration is missing required keys like 'apiKey' or 'projectId'.";
-                        configError.classList.remove('hidden');
-                    }
-                } catch (e) {
-                    console.error("JSON Parsing Error:", e);
-                    configError.textContent = "The pasted text is not valid JSON. Check for missing quotes or commas.";
-                    configError.classList.remove('hidden');
-                }
-            });
+        if (config && config.apiKey && config.projectId) {
+            console.log("5. ✅ La validación fue EXITOSA. Ocultando modal...");
+            localStorage.setItem('firebaseConfig', JSON.stringify(config));
+            configModal.classList.add('hidden');
+            globalLoader.classList.remove('hidden');
+            init(config);
+        } else {
+            console.error("6. ❌ La validación FALLÓ. Revisa los valores de los pasos 3 y 4.");
+            configError.textContent = "La validación falló. Revisa la consola (F12) para más detalles.";
+            configError.classList.remove('hidden');
+        }
+    } catch (e) {
+        console.error("¡FALLA CRÍTICA! El texto no es un JSON válido.", e);
+        configError.textContent = "El texto que pegaste no es un formato JSON válido.";
+        configError.classList.remove('hidden');
+    }
+});
 
             function setupRealtimeListener() {
                 const workoutsCollectionPath = `users/${userId}/workouts`;
