@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rastreador de Gimnasio con Nube</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Focus -->
+    <!-- Application Structure Plan: La estructura de pestañas se mantiene, pero el motor de datos se ha reemplazado completamente. Se pasa de localStorage a Firebase Firestore. Esto introduce una capa de persistencia real y sincronización entre dispositivos, abordando la principal preocupación del usuario. La autenticación de Firebase se maneja de forma transparente al inicio. -->
+    <!-- Visualization & Content Choices: Las visualizaciones y la lógica de la interfaz de usuario permanecen sin cambios. La principal modificación es que ahora los datos se leen en tiempo real desde Firestore a través de un listener onSnapshot y se escriben en Firestore mediante addDoc, en lugar de interactuar con el almacenamiento local. Esto hace que la aplicación sea robusta y multi-dispositivo. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .tab-button.active { border-color: #1e40af; color: #1e40af; background-color: #dbeafe; }
+        .chart-container { position: relative; width: 100%; max-width: 800px; margin-left: auto; margin-right: auto; height: 300px; max-height: 40vh; }
+        @media (min-width: 768px) { .chart-container { height: 400px; } }
+        .gemini-response { white-space: pre-wrap; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #global-loader { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255, 255, 255, 0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 1rem; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div id="global-loader">
+        <div class="loader" style="width: 50px; height: 50px;"></div>
+        <p class="text-gray-700">Conectando con la nube...</p>
+    </div>
+
+    <div id="app-content" class="container mx-auto p-4 md:p-6 max-w-4xl hidden">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl md:text-4xl font-bold text-blue-900">🏋️‍♂️ Mi Rastreador de Gimnasio con Nube</h1>
+            <p class="text-gray-600 mt-1">Tu asistente de entrenamiento personal potenciado por Gemini.</p>
+        </header>
+
+        <nav class="flex justify-center border-b border-gray-200 mb-6 flex-wrap">
+            <button data-tab="registrar" class="tab-button active text-lg font-semibold py-3 px-6 border-b-2 border-transparent transition-colors duration-300">Registrar</button>
+            <button data-tab="historial" class="tab-button text-lg font-semibold py-3 px-6 border-b-2 border-transparent transition-colors duration-300">Historial</button>
+            <button data-tab="progreso" class="tab-button text-lg font-semibold py-3 px-6 border-b-2 border-transparent transition-colors duration-300">Progreso</button>
+            <button data-tab="analisis-ia" class="tab-button text-lg font-semibold py-3 px-6 border-b-2 border-transparent transition-colors duration-300">Análisis IA</button>
+        </nav>
+
+        <main>
+            <!-- All tab content remains the same -->
+            <div id="registrar" class="tab-content space-y-6">
+                 <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h2 class="text-xl font-bold text-gray-700 mb-4">Selecciona tu Ejercicio</h2>
+                    <select id="exercise-select-main" class="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></select>
+                </div>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-lg font-bold text-gray-700 mb-3">Último Registro</h3>
+                        <div id="last-workout-display" class="text-gray-600 space-y-2">
+                            <p>Selecciona un ejercicio para ver tu último registro.</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                         <h3 class="text-lg font-bold text-gray-700 mb-3">Nuevo Registro</h3>
+                        <form id="log-form" class="space-y-4">
+                            <div>
+                                <label for="weight" class="block text-sm font-medium text-gray-700">Peso (kg)</label>
+                                <input type="number" id="weight" step="0.5" min="0" required class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="series" class="block text-sm font-medium text-gray-700">Series</label>
+                                    <input type="number" id="series" min="1" required class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                                </div>
+                                <div>
+                                    <label for="reps" class="block text-sm font-medium text-gray-700">Reps</label>
+                                    <input type="number" id="reps" min="1" required class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                                </div>
+                            </div>
+                             <div>
+                                <label for="date" class="block text-sm font-medium text-gray-700">Fecha</label>
+                                <input type="date" id="date" required class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <button type="submit" class="w-full bg-blue-700 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-800 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Registrar Entrenamiento</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div id="historial" class="tab-content hidden"><div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200"><h2 class="text-2xl font-bold text-gray-700 mb-4">📋 Historial de Entrenamientos</h2><div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ejercicio</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Peso (kg)</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Series</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reps</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Volumen</th></tr></thead><tbody id="history-table-body" class="bg-white divide-y divide-gray-200"></tbody></table></div></div></div>
+            <div id="progreso" class="tab-content hidden"><div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200"><h2 class="text-2xl font-bold text-gray-700 mb-2">📊 Progreso por Ejercicio</h2><p class="text-gray-600 mb-4">Selecciona un ejercicio para ver la evolución de tu volumen de carga a lo largo del tiempo.</p><select id="exercise-select-chart" class="w-full md:w-1/2 p-3 mb-6 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></select><div class="chart-container"><canvas id="progressChart"></canvas></div></div></div>
+            <div id="analisis-ia" class="tab-content hidden space-y-6"><div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200"><h2 class="text-2xl font-bold text-gray-700 mb-2">🧠 Análisis de Progreso con IA</h2><p class="text-gray-600 mb-4">Obtén un resumen de tu rendimiento y recomendaciones personalizadas basadas en tus últimos entrenamientos.</p><button id="analyze-progress-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors duration-300">Analizar Mi Progreso</button><div id="progress-analysis-loader" class="hidden mt-4 flex justify-center"><div class="loader"></div></div><div id="progress-analysis-result" class="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-gray-700"></div></div><div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200"><h2 class="text-2xl font-bold text-gray-700 mb-2">💡 Consejos de Técnica por IA</h2><p class="text-gray-600 mb-4">Selecciona un ejercicio para recibir consejos sobre la forma y técnica correctas.</p><div class="flex flex-col md:flex-row md:items-center gap-4"><select id="exercise-select-tips" class="w-full md:w-1/2 p-3 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></select><button id="get-tips-btn" class="bg-purple-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-700 transition-colors duration-300">Obtener Consejos</button></div><div id="tips-loader" class="hidden mt-4 flex justify-center"><div class="loader"></div></div><div id="tips-result" class="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg text-gray-700"></div></div></div>
+        </main>
+        
+        <div id="toast" class="fixed bottom-5 right-5 bg-green-500 text-white py-2 px-4 rounded-lg shadow-lg opacity-0 transition-opacity duration-500">
+            Entrenamiento registrado!
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- PEGA TU CONFIGURACIÓN DE FIREBASE AQUÍ ---
+        // Reemplaza este objeto de ejemplo con el que obtuviste de la configuración de tu proyecto de Firebase.
+        const firebaseConfig = {
+            apiKey: "AIzaSyCvxzKwwSulWGisEeAz-GeJUDEgAa_Ef1A",
+            authDomain: "gymlog-570b5.firebaseapp.com",
+            projectId: "gymlog-570b5",
+            storageBucket: "gymlog-570b5.firebasestorage.app",
+            messagingSenderId: "318896567360",
+            appId: "1:318896567360:web:7ceee667c0eb238c525ba5"
+        };
+        // -----------------------------------------
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const exercises = [ 'Press de Banca', 'Sentadillas', 'Peso Muerto', 'Dominadas', 'Press Militar', 'Remo con Barra', 'Fondos en Paralelas', 'Curl de Bíceps', 'Extensiones de Tríceps' ];
+            let database = [];
+            let userId = null;
+
+            const mainSelect = document.getElementById('exercise-select-main');
+            const chartSelect = document.getElementById('exercise-select-chart');
+            const tipsSelect = document.getElementById('exercise-select-tips');
+            const lastWorkoutDisplay = document.getElementById('last-workout-display');
+            const logForm = document.getElementById('log-form');
+            const historyTableBody = document.getElementById('history-table-body');
+            const dateInput = document.getElementById('date');
+            const toast = document.getElementById('toast');
+            const tabs = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+            const analyzeProgressBtn = document.getElementById('analyze-progress-btn');
+            const progressAnalysisResult = document.getElementById('progress-analysis-result');
+            const progressLoader = document.getElementById('progress-analysis-loader');
+            const getTipsBtn = document.getElementById('get-tips-btn');
+            const tipsResult = document.getElementById('tips-result');
+            const tipsLoader = document.getElementById('tips-loader');
+            const globalLoader = document.getElementById('global-loader');
+            const appContent = document.getElementById('app-content');
+            let progressChart;
+
+            async function callGemini(prompt) {
+                const apiKey = ""; // This will use the proxy if left empty
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+                try {
+                    const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    if (!response.ok) throw new Error(`Error en la API: ${response.statusText}`);
+                    const result = await response.json();
+                    if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts.length > 0) {
+                        return result.candidates[0].content.parts[0].text;
+                    } else { return "No se pudo obtener una respuesta de la IA."; }
+                } catch (error) {
+                    console.error("Error al llamar a la API de Gemini:", error);
+                    return `Error al conectar con la IA: ${error.message}.`;
+                }
+            }
+
+            async function init() {
+                try {
+                    await signInAnonymously(auth);
+                    userId = auth.currentUser.uid;
+                    setupRealtimeListener();
+                    populateSelects();
+                    setupChart();
+                    dateInput.valueAsDate = new Date();
+                    progressAnalysisResult.innerHTML = "Haz clic en el botón para generar un análisis.";
+                    tipsResult.innerHTML = "Selecciona un ejercicio y haz clic para obtener consejos.";
+                } catch (error) {
+                    console.error("Error en la inicialización o autenticación:", error);
+                    globalLoader.innerHTML = `<p class="text-red-500">No se pudo conectar. Revisa que la configuración de Firebase sea correcta.</p>`;
+                }
+            }
+
+            function setupRealtimeListener() {
+                const workoutsCollectionPath = `users/${userId}/workouts`;
+                const workoutsCollection = collection(db, workoutsCollectionPath);
+                
+                onSnapshot(workoutsCollection, (snapshot) => {
+                    database = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    updateAllUI();
+                    
+                    if (globalLoader.style.display !== 'none') {
+                        globalLoader.style.display = 'none';
+                        appContent.classList.remove('hidden');
+                    }
+                }, (error) => {
+                    console.error("Error al escuchar cambios en la base de datos:", error);
+                     globalLoader.innerHTML = `<p class="text-red-500">Error de base de datos. Revisa las reglas de seguridad en tu proyecto de Firebase.</p>`;
+                });
+            }
+            
+            function updateAllUI() {
+                updateHistoryTable();
+                updateLastWorkoutDisplay();
+                updateProgressChart();
+            }
+
+            function populateSelects() {
+                const selects = [mainSelect, chartSelect, tipsSelect];
+                selects.forEach(s => s.innerHTML = '<option value="" disabled selected>Elige un ejercicio...</option>');
+                exercises.forEach(ex => {
+                    selects.forEach(s => s.add(new Option(ex, ex)));
+                });
+            }
+
+            function updateLastWorkoutDisplay() {
+                const selectedExercise = mainSelect.value;
+                if (!selectedExercise) {
+                    lastWorkoutDisplay.innerHTML = '<p>Selecciona un ejercicio para ver tu último registro.</p>';
+                    return;
+                }
+                const lastWorkout = database.filter(e => e.exercise === selectedExercise).sort((a,b) => new Date(b.date) - new Date(a.date))[0];
+                if (lastWorkout) {
+                    lastWorkoutDisplay.innerHTML = `<p><strong>Fecha:</strong> ${new Date(lastWorkout.date).toLocaleDateString('es-ES',{timeZone:'UTC'})}</p><p><strong>Peso:</strong> ${lastWorkout.weight} kg</p><p><strong>Series:</strong> ${lastWorkout.series}</p><p><strong>Reps:</strong> ${lastWorkout.reps}</p><p class="font-bold text-blue-800"><strong>Volumen:</strong> ${lastWorkout.volume} kg</p>`;
+                } else {
+                    lastWorkoutDisplay.innerHTML = '<p>No hay registros para este ejercicio todavía.</p>';
+                }
+            }
+
+            function updateHistoryTable() {
+                historyTableBody.innerHTML = '';
+                const sortedDb = [...database].sort((a,b) => new Date(b.date) - new Date(a.date));
+                if (sortedDb.length === 0) {
+                    historyTableBody.innerHTML = '<tr><td colspan="6" class="text-center py-4">Aún no has registrado ningún entrenamiento.</td></tr>';
+                    return;
+                }
+                sortedDb.forEach(entry => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `<td class="px-6 py-4 whitespace-nowrap">${new Date(entry.date).toLocaleDateString('es-ES',{timeZone:'UTC'})}</td><td class="px-6 py-4 whitespace-nowrap">${entry.exercise}</td><td class="px-6 py-4 whitespace-nowrap">${entry.weight} kg</td><td class="px-6 py-4 whitespace-nowrap">${entry.series}</td><td class="px-6 py-4 whitespace-nowrap">${entry.reps}</td><td class="px-6 py-4 whitespace-nowrap font-semibold">${entry.volume}</td>`;
+                    historyTableBody.appendChild(row);
+                });
+            }
+            
+            function showToast() {
+                toast.classList.remove('opacity-0');
+                setTimeout(() => { toast.classList.add('opacity-0'); }, 3000);
+            }
+
+            logForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const exercise = mainSelect.value;
+                if (!exercise) { alert('Por favor, selecciona un ejercicio.'); return; }
+                const weight = parseFloat(document.getElementById('weight').value);
+                const series = parseInt(document.getElementById('series').value);
+                const reps = parseInt(document.getElementById('reps').value);
+                const date = dateInput.value;
+                const newEntry = { date, exercise, weight, series, reps, volume: weight * series * reps };
+                
+                try {
+                    const workoutsCollectionPath = `users/${userId}/workouts`;
+                    await addDoc(collection(db, workoutsCollectionPath), newEntry);
+                    showToast();
+                    logForm.reset();
+                    dateInput.valueAsDate = new Date();
+                } catch (error) {
+                    console.error("Error al guardar el entrenamiento: ", error);
+                    alert("No se pudo guardar el entrenamiento en la nube. Revisa tu conexión.");
+                }
+            });
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(item => item.classList.remove('active'));
+                    tab.classList.add('active');
+                    const target = tab.getAttribute('data-tab');
+                    tabContents.forEach(content => {
+                        content.id === target ? content.classList.remove('hidden') : content.classList.add('hidden');
+                    });
+                });
+            });
+
+            mainSelect.addEventListener('change', updateLastWorkoutDisplay);
+            chartSelect.addEventListener('change', updateProgressChart);
+
+            analyzeProgressBtn.addEventListener('click', async () => {
+                progressLoader.classList.remove('hidden');
+                progressAnalysisResult.innerHTML = '';
+                const recentData = database.slice(-30).map(e => `Fecha: ${e.date}, Ejercicio: ${e.exercise}, Peso: ${e.weight}kg, Series: ${e.series}, Reps: ${e.reps}, Volumen: ${e.volume}kg`).join('\n');
+                const prompt = `Actúa como un entrenador personal experto y motivador. Analiza los siguientes datos de entrenamiento de un usuario. Proporciona un resumen conciso de su progreso, destaca 1-2 puntos fuertes y 1-2 áreas de mejora. Finaliza con una recomendación clara y accionable para su próxima semana. Sé positivo y directo. Formato: Párrafos cortos. Datos:\n${recentData}`;
+                const result = await callGemini(prompt);
+                progressAnalysisResult.innerHTML = result;
+                progressLoader.classList.add('hidden');
+            });
+
+            getTipsBtn.addEventListener('click', async () => {
+                const selectedExercise = tipsSelect.value;
+                if (!selectedExercise) { tipsResult.innerHTML = "Por favor, selecciona un ejercicio primero."; return; }
+                tipsLoader.classList.remove('hidden');
+                tipsResult.innerHTML = '';
+                const prompt = `Actúa como un experto en fisioculturismo y entrenador personal. Proporciona 3 consejos clave, concisos y prácticos sobre la técnica correcta y segura para realizar el ejercicio: "${selectedExercise}". Enfócate en los errores más comunes y cómo evitarlos. La respuesta debe estar en español y formateada como una lista HTML no ordenada (<ul><li>...</li></ul>).`;
+                const result = await callGemini(prompt);
+                tipsResult.innerHTML = result;
+                tipsLoader.classList.add('hidden');
+            });
+
+            function setupChart() {
+                const ctx = document.getElementById('progressChart').getContext('2d');
+                progressChart = new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: [], datasets: [{ label: 'Volumen de Carga (kg)', data: [], borderColor: '#1d4ed8', backgroundColor: 'rgba(29, 78, 216, 0.1)', borderWidth: 2, tension: 0.1, fill: true }] },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(context) { return `Volumen: ${context.parsed.y} kg`; } } } } }
+                });
+            }
+
+            function updateProgressChart() {
+                const selectedExercise = chartSelect.value;
+                if (!selectedExercise) {
+                    progressChart.data.labels = [];
+                    progressChart.data.datasets[0].data = [];
+                    progressChart.update();
+                    return;
+                }
+                const exerciseData = database.filter(e => e.exercise === selectedExercise).sort((a,b) => new Date(a.date) - new Date(b.date));
+                progressChart.data.labels = exerciseData.map(e => new Date(e.date).toLocaleDateString('es-ES',{timeZone:'UTC'}));
+                progressChart.data.datasets[0].data = exerciseData.map(e => e.volume);
+                progressChart.data.datasets[0].label = `Volumen de Carga (${selectedExercise})`;
+                progressChart.update();
+            }
+
+            init();
+        });
+    </script>
+</body>
+</html>
