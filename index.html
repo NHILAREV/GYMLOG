@@ -3,122 +3,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rastreador de Gimnasio con Nube</title>
+    <title>Rastreador de Gimnasio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Chosen Palette: Calm Focus -->
-    <!-- Application Structure Plan: La estructura de pestañas se mantiene, pero el motor de datos se ha reemplazado completamente. Se pasa de localStorage a Firebase Firestore. Esto introduce una capa de persistencia real y sincronización entre dispositivos, abordando la principal preocupación del usuario. La autenticación de Firebase se maneja de forma transparente al inicio. -->
-    <!-- Visualization & Content Choices: Las visualizaciones y la lógica de la interfaz de usuario permanecen sin cambios. La principal modificación es que ahora los datos se leen en tiempo real desde Firestore a través de un listener onSnapshot y se escriben en Firestore mediante addDoc, en lugar de interactuar con el almacenamiento local. Esto hace que la aplicación sea robusta y multi-dispositivo. -->
+    <!-- Application Structure Plan: Se ha rediseñado la UI según las especificaciones del usuario, cambiando etiquetas y reorganizando el formulario para una entrada de datos más compacta. Se ha añadido un modo oscuro automático basado en la hora de Argentina (GMT-3) para mejorar la usabilidad nocturna. -->
+    <!-- Visualization & Content Choices: La funcionalidad de eliminar se mantiene. El cambio principal es estético y de usabilidad, con una nueva lista de ejercicios y una nueva disposición de los controles de entrada. El modo oscuro se implementa con clases de Tailwind CSS y una función JS que comprueba la hora. -->
     <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        .tab-button.active { border-color: #1e40af; color: #1e40af; background-color: #dbeafe; }
+        body { font-family: 'Inter', sans-serif; transition: background-color 0.3s, color 0.3s; }
+        .tab-button.active { border-color: #3b82f6; color: #2563eb; }
+        .dark .tab-button.active { border-color: #60a5fa; color: #93c5fd; }
         .chart-container { position: relative; width: 100%; max-width: 800px; margin-left: auto; margin-right: auto; height: 300px; max-height: 40vh; }
         @media (min-width: 768px) { .chart-container { height: 400px; } }
         .gemini-response { white-space: pre-wrap; }
         .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #global-loader { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255, 255, 255, 0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 1rem; }
+        #global-loader, #confirmation-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.6); z-index: 9999; display: flex; align-items: center; justify-content: center; }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body class="bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-200">
 
     <div id="global-loader">
-        <div class="loader" style="width: 50px; height: 50px;"></div>
-        <p class="text-gray-700">Conectando con la nube...</p>
+        <div class="loader" style="width: 50px; height: 50px; border-top-color: #fff;"></div>
+        <p class="text-white mt-4">Conectando con la nube...</p>
     </div>
 
     <div id="app-content" class="container mx-auto p-4 md:p-6 max-w-4xl hidden">
-        <header class="text-center mb-6">
-            <h1 class="text-3xl md:text-4xl font-bold text-blue-900">🏋️‍♂️ Mi Rastreador de Gimnasio con Nube</h1>
-            <p class="text-gray-600 mt-1">Tu asistente de entrenamiento personal potenciado por Gemini.</p>
-        </header>
-
-        <nav class="flex justify-center border-b border-gray-200 mb-6 flex-wrap">
-            <button data-tab="registrar" class="tab-button active text-lg font-semibold py-3 px-6 border-b-2 border-transparent transition-colors duration-300">Registrar</button>
-            <button data-tab="historial" class="tab-button text-lg font-semibold py-3 px-6 border-b-2 border-transparent transition-colors duration-300">Historial</button>
-            <button data-tab="progreso" class="tab-button text-lg font-semibold py-3 px-6 border-b-2 border-transparent transition-colors duration-300">Progreso</button>
-            <button data-tab="analisis-ia" class="tab-button text-lg font-semibold py-3 px-6 border-b-2 border-transparent transition-colors duration-300">Análisis IA</button>
+        <nav class="flex justify-center border-b border-gray-200 dark:border-gray-700 mb-6 flex-wrap">
+            <button data-tab="registrar" class="tab-button active text-lg font-semibold py-3 px-6 border-b-2 border-transparent transition-colors duration-300">Home</button>
+            <button data-tab="historial" class="tab-button text-lg font-semibold py-3 px-6 border-b-2 border-transparent transition-colors duration-300">Log</button>
+            <button data-tab="progreso" class="tab-button text-lg font-semibold py-3 px-6 border-b-2 border-transparent transition-colors duration-300">Viz</button>
+            <button data-tab="analisis-ia" class="tab-button text-lg font-semibold py-3 px-6 border-b-2 border-transparent transition-colors duration-300">AI</button>
         </nav>
 
         <main>
-            <!-- All tab content remains the same -->
+            <!-- Home Tab -->
             <div id="registrar" class="tab-content space-y-6">
-                 <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                    <h2 class="text-xl font-bold text-gray-700 mb-4">Selecciona tu Ejercicio</h2>
-                    <select id="exercise-select-main" class="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></select>
+                 <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+                    <h2 class="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">Training Next</h2>
+                    <select id="exercise-select-main" class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500"></select>
                 </div>
                 <div class="grid md:grid-cols-2 gap-6">
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h3 class="text-lg font-bold text-gray-700 mb-3">Último Registro</h3>
-                        <div id="last-workout-display" class="text-gray-600 space-y-2">
-                            <p>Selecciona un ejercicio para ver tu último registro.</p>
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+                        <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 mb-3">Log</h3>
+                        <div id="last-workout-display" class="text-gray-600 dark:text-gray-400 space-y-2">
+                            <p>Empty</p>
                         </div>
                     </div>
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                         <h3 class="text-lg font-bold text-gray-700 mb-3">Nuevo Registro</h3>
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+                         <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 mb-3">New Log</h3>
                         <form id="log-form" class="space-y-4">
-                            <div>
-                                <label for="weight" class="block text-sm font-medium text-gray-700">Peso (kg)</label>
-                                <input type="number" id="weight" step="0.5" min="0" required class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                            <input type="date" id="date" required class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500">
+                            <div class="flex items-center gap-4">
+                                <label for="weight" class="block text-sm font-medium w-8">W</label>
+                                <input type="number" id="weight" step="0.5" min="0" required class="flex-1 w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500">
                             </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label for="series" class="block text-sm font-medium text-gray-700">Series</label>
-                                    <input type="number" id="series" min="1" required class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
-                                </div>
-                                <div>
-                                    <label for="reps" class="block text-sm font-medium text-gray-700">Reps</label>
-                                    <input type="number" id="reps" min="1" required class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
-                                </div>
+                            <div class="flex items-center gap-4">
+                                <label for="series" class="block text-sm font-medium w-8">S</label>
+                                <input type="number" id="series" min="1" required class="flex-1 w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500">
                             </div>
-                             <div>
-                                <label for="date" class="block text-sm font-medium text-gray-700">Fecha</label>
-                                <input type="date" id="date" required class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                            <div class="flex items-center gap-4">
+                                <label for="reps" class="block text-sm font-medium w-8">R</label>
+                                <input type="number" id="reps" min="1" required class="flex-1 w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500">
                             </div>
-                            <button type="submit" class="w-full bg-blue-700 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-800 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Registrar Entrenamiento</button>
+                            <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Save</button>
                         </form>
                     </div>
                 </div>
             </div>
-            <div id="historial" class="tab-content hidden"><div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200"><h2 class="text-2xl font-bold text-gray-700 mb-4">📋 Historial de Entrenamientos</h2><div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ejercicio</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Peso (kg)</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Series</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reps</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Volumen</th></tr></thead><tbody id="history-table-body" class="bg-white divide-y divide-gray-200"></tbody></table></div></div></div>
-            <div id="progreso" class="tab-content hidden"><div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200"><h2 class="text-2xl font-bold text-gray-700 mb-2">📊 Progreso por Ejercicio</h2><p class="text-gray-600 mb-4">Selecciona un ejercicio para ver la evolución de tu volumen de carga a lo largo del tiempo.</p><select id="exercise-select-chart" class="w-full md:w-1/2 p-3 mb-6 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></select><div class="chart-container"><canvas id="progressChart"></canvas></div></div></div>
-            <div id="analisis-ia" class="tab-content hidden space-y-6"><div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200"><h2 class="text-2xl font-bold text-gray-700 mb-2">🧠 Análisis de Progreso con IA</h2><p class="text-gray-600 mb-4">Obtén un resumen de tu rendimiento y recomendaciones personalizadas basadas en tus últimos entrenamientos.</p><button id="analyze-progress-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors duration-300">Analizar Mi Progreso</button><div id="progress-analysis-loader" class="hidden mt-4 flex justify-center"><div class="loader"></div></div><div id="progress-analysis-result" class="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-gray-700"></div></div><div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200"><h2 class="text-2xl font-bold text-gray-700 mb-2">💡 Consejos de Técnica por IA</h2><p class="text-gray-600 mb-4">Selecciona un ejercicio para recibir consejos sobre la forma y técnica correctas.</p><div class="flex flex-col md:flex-row md:items-center gap-4"><select id="exercise-select-tips" class="w-full md:w-1/2 p-3 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></select><button id="get-tips-btn" class="bg-purple-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-700 transition-colors duration-300">Obtener Consejos</button></div><div id="tips-loader" class="hidden mt-4 flex justify-center"><div class="loader"></div></div><div id="tips-result" class="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg text-gray-700"></div></div></div>
+            <!-- Historial Tab -->
+            <div id="historial" class="tab-content hidden"><div class="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700"><h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-4">📋 Log</h2><div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700"><thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Fecha</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Ejercicio</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Peso</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Series</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Reps</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Volumen</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Acciones</th></tr></thead><tbody id="history-table-body" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"></tbody></table></div></div></div>
+            <!-- Progreso Tab -->
+            <div id="progreso" class="tab-content hidden"><div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700"><h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">📊 Viz</h2><p class="text-gray-600 dark:text-gray-400 mb-4">Selecciona un ejercicio para ver la evolución de tu volumen de carga a lo largo del tiempo.</p><select id="exercise-select-chart" class="w-full md:w-1/2 p-3 mb-6 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500"></select><div class="chart-container"><canvas id="progressChart"></canvas></div></div></div>
+            <!-- Analisis IA Tab -->
+            <div id="analisis-ia" class="tab-content hidden space-y-6"><div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700"><h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">🧠 AI Analysis</h2><p class="text-gray-600 dark:text-gray-400 mb-4">Obtén un resumen de tu rendimiento y recomendaciones personalizadas.</p><button id="analyze-progress-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors duration-300">Analizar Mi Progreso</button><div id="progress-analysis-loader" class="hidden mt-4 flex justify-center"><div class="loader"></div></div><div id="progress-analysis-result" class="mt-4 p-4 bg-blue-50 dark:bg-gray-700 border border-blue-200 dark:border-blue-800 rounded-lg"></div></div><div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700"><h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">💡 AI Tips</h2><p class="text-gray-600 dark:text-gray-400 mb-4">Selecciona un ejercicio para recibir consejos sobre la forma y técnica correctas.</p><div class="flex flex-col md:flex-row md:items-center gap-4"><select id="exercise-select-tips" class="w-full md:w-1/2 p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500"></select><button id="get-tips-btn" class="bg-purple-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-700 transition-colors duration-300">Obtener Consejos</button></div><div id="tips-loader" class="hidden mt-4 flex justify-center"><div class="loader"></div></div><div id="tips-result" class="mt-4 p-4 bg-purple-50 dark:bg-gray-700 border border-purple-200 dark:border-purple-800 rounded-lg"></div></div></div>
         </main>
         
-        <div id="toast" class="fixed bottom-5 right-5 bg-green-500 text-white py-2 px-4 rounded-lg shadow-lg opacity-0 transition-opacity duration-500">
-            Entrenamiento registrado!
+        <div id="toast" class="fixed bottom-5 right-5 bg-green-500 text-white py-2 px-4 rounded-lg shadow-lg opacity-0 transition-opacity duration-500"></div>
+    </div>
+    
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="hidden">
+        <div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-xl text-center">
+            <h3 class="text-xl font-bold mb-4">¿Estás seguro?</h3>
+            <p class="text-gray-600 dark:text-gray-400 mb-6">Esta acción no se puede deshacer.</p>
+            <div class="flex justify-center gap-4">
+                <button id="cancel-delete-btn" class="py-2 px-6 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-100 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500">Cancelar</button>
+                <button id="confirm-delete-btn" class="py-2 px-6 bg-red-600 text-white rounded-lg hover:bg-red-700">Eliminar</button>
+            </div>
         </div>
     </div>
+
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- PEGA TU CONFIGURACIÓN DE FIREBASE AQUÍ ---
-        // Reemplaza este objeto de ejemplo con el que obtuviste de la configuración de tu proyecto de Firebase.
         const firebaseConfig = {
             apiKey: "AIzaSyCvxzKwwSulWGisEeAz-GeJUDEgAa_Ef1A",
             authDomain: "gymlog-570b5.firebaseapp.com",
             projectId: "gymlog-570b5",
-            storageBucket: "gymlog-570b5.firebasestorage.app",
+            storageBucket: "gymlog-570b5.appspot.com",
             messagingSenderId: "318896567360",
             appId: "1:318896567360:web:7ceee667c0eb238c525ba5"
         };
         // -----------------------------------------
 
-        const app = initializeApp(firebaseConfig);
+        let app;
+        try {
+            app = initializeApp(firebaseConfig);
+        } catch (e) {
+            console.error("Error al inicializar Firebase. ¿Están las credenciales en su lugar?", e);
+            document.getElementById('global-loader').innerHTML = `<div class="text-center p-4"><p class="text-red-500 font-bold text-lg">Error de Configuración de Firebase</p><p class="text-white mt-2">No se pudo inicializar la aplicación. Revisa que el objeto 'firebaseConfig' sea correcto.</p></div>`;
+        }
+        
         const db = getFirestore(app);
         const auth = getAuth(app);
 
         document.addEventListener('DOMContentLoaded', () => {
-            const exercises = [ 'Press de Banca', 'Sentadillas', 'Peso Muerto', 'Dominadas', 'Press Militar', 'Remo con Barra', 'Fondos en Paralelas', 'Curl de Bíceps', 'Extensiones de Tríceps' ];
+            const exercises = [
+                "Arnold Press", "Back Raise", "Bicep Concentration Curl", "Bicep Curl", 
+                "Crossed Lunge", "Deadlift", "Diamond Push Up", "Front Raise", "Hamstring Raise",
+                "Lateral Raise", "Lunge", "Push Up", "Pyke Push Up", "Shrug", "Squat", 
+                "Tricep Curl", "Tricep Kickback"
+            ].sort();
+
             let database = [];
             let userId = null;
+            let docIdToDelete = null;
 
             const mainSelect = document.getElementById('exercise-select-main');
             const chartSelect = document.getElementById('exercise-select-chart');
@@ -138,10 +156,27 @@
             const tipsLoader = document.getElementById('tips-loader');
             const globalLoader = document.getElementById('global-loader');
             const appContent = document.getElementById('app-content');
+            const confirmationModal = document.getElementById('confirmation-modal');
+            const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+            const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
             let progressChart;
+            
+            function applyTheme() {
+                const now = new Date();
+                const offset = now.getTimezoneOffset() * 60000;
+                const utc = now.getTime();
+                const artTime = new Date(utc - (3600000 * 3)); // UTC-3 for Argentina
+                const hour = artTime.getHours();
+
+                if (hour >= 19 || hour < 6) {
+                    document.body.classList.add('dark');
+                } else {
+                    document.body.classList.remove('dark');
+                }
+            }
 
             async function callGemini(prompt) {
-                const apiKey = ""; // This will use the proxy if left empty
+                const apiKey = "";
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
                 const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
                 try {
@@ -158,6 +193,13 @@
             }
 
             async function init() {
+                applyTheme();
+                
+                if (firebaseConfig.apiKey === "PEGA_TU_API_KEY_AQUI" || !firebaseConfig.apiKey) {
+                    globalLoader.innerHTML = `<div class="text-center p-4 max-w-md"><p class="text-red-500 font-bold text-lg">Error de Configuración</p><p class="text-white mt-2">No has configurado tus credenciales de Firebase.</p><p class="text-white mt-2">Por favor, edita el archivo <strong>index.html</strong> y reemplaza los valores de 'firebaseConfig' con los de tu propio proyecto de Firebase.</p></div>`;
+                    return;
+                }
+
                 try {
                     await signInAnonymously(auth);
                     userId = auth.currentUser.uid;
@@ -169,18 +211,19 @@
                     tipsResult.innerHTML = "Selecciona un ejercicio y haz clic para obtener consejos.";
                 } catch (error) {
                     console.error("Error en la inicialización o autenticación:", error);
-                    globalLoader.innerHTML = `<p class="text-red-500">No se pudo conectar. Revisa que la configuración de Firebase sea correcta.</p>`;
+                    if (error.code === 'auth/invalid-api-key' || (error.message && error.message.includes('API key not valid'))) {
+                         globalLoader.innerHTML = `<div class="text-center p-4 max-w-md"><p class="text-red-500 font-bold text-lg">Clave de API no válida</p><p class="text-white mt-2">La clave de API en tu configuración de Firebase no es correcta.</p><p class="text-white mt-2">Asegúrate de haber copiado y pegado el objeto <strong>firebaseConfig</strong> completo y sin errores desde la configuración de tu proyecto de Firebase.</p></div>`;
+                    } else {
+                        globalLoader.innerHTML = `<p class="text-red-500">No se pudo conectar a la nube. Por favor, recarga la página.</p>`;
+                    }
                 }
             }
 
             function setupRealtimeListener() {
                 const workoutsCollectionPath = `users/${userId}/workouts`;
-                const workoutsCollection = collection(db, workoutsCollectionPath);
-                
-                onSnapshot(workoutsCollection, (snapshot) => {
+                onSnapshot(collection(db, workoutsCollectionPath), (snapshot) => {
                     database = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     updateAllUI();
-                    
                     if (globalLoader.style.display !== 'none') {
                         globalLoader.style.display = 'none';
                         appContent.classList.remove('hidden');
@@ -208,14 +251,14 @@
             function updateLastWorkoutDisplay() {
                 const selectedExercise = mainSelect.value;
                 if (!selectedExercise) {
-                    lastWorkoutDisplay.innerHTML = '<p>Selecciona un ejercicio para ver tu último registro.</p>';
+                    lastWorkoutDisplay.innerHTML = '<p>Empty</p>';
                     return;
                 }
                 const lastWorkout = database.filter(e => e.exercise === selectedExercise).sort((a,b) => new Date(b.date) - new Date(a.date))[0];
                 if (lastWorkout) {
-                    lastWorkoutDisplay.innerHTML = `<p><strong>Fecha:</strong> ${new Date(lastWorkout.date).toLocaleDateString('es-ES',{timeZone:'UTC'})}</p><p><strong>Peso:</strong> ${lastWorkout.weight} kg</p><p><strong>Series:</strong> ${lastWorkout.series}</p><p><strong>Reps:</strong> ${lastWorkout.reps}</p><p class="font-bold text-blue-800"><strong>Volumen:</strong> ${lastWorkout.volume} kg</p>`;
+                    lastWorkoutDisplay.innerHTML = `<p><strong>Fecha:</strong> ${new Date(lastWorkout.date).toLocaleDateString('es-ES',{timeZone:'UTC'})}</p><p><strong>W:</strong> ${lastWorkout.weight} kg</p><p><strong>S:</strong> ${lastWorkout.series}</p><p><strong>R:</strong> ${lastWorkout.reps}</p><p class="font-bold text-blue-600 dark:text-blue-400"><strong>Volumen:</strong> ${lastWorkout.volume} kg</p>`;
                 } else {
-                    lastWorkoutDisplay.innerHTML = '<p>No hay registros para este ejercicio todavía.</p>';
+                    lastWorkoutDisplay.innerHTML = '<p>Empty</p>';
                 }
             }
 
@@ -223,17 +266,28 @@
                 historyTableBody.innerHTML = '';
                 const sortedDb = [...database].sort((a,b) => new Date(b.date) - new Date(a.date));
                 if (sortedDb.length === 0) {
-                    historyTableBody.innerHTML = '<tr><td colspan="6" class="text-center py-4">Aún no has registrado ningún entrenamiento.</td></tr>';
+                    historyTableBody.innerHTML = '<tr><td colspan="7" class="text-center py-4">Aún no has registrado ningún entrenamiento.</td></tr>';
                     return;
                 }
                 sortedDb.forEach(entry => {
                     const row = document.createElement('tr');
-                    row.innerHTML = `<td class="px-6 py-4 whitespace-nowrap">${new Date(entry.date).toLocaleDateString('es-ES',{timeZone:'UTC'})}</td><td class="px-6 py-4 whitespace-nowrap">${entry.exercise}</td><td class="px-6 py-4 whitespace-nowrap">${entry.weight} kg</td><td class="px-6 py-4 whitespace-nowrap">${entry.series}</td><td class="px-6 py-4 whitespace-nowrap">${entry.reps}</td><td class="px-6 py-4 whitespace-nowrap font-semibold">${entry.volume}</td>`;
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap">${new Date(entry.date).toLocaleDateString('es-ES',{timeZone:'UTC'})}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${entry.exercise}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${entry.weight} kg</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${entry.series}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${entry.reps}</td>
+                        <td class="px-6 py-4 whitespace-nowrap font-semibold">${entry.volume}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <button class="delete-btn text-red-600 hover:text-red-800" data-id="${entry.id}">🗑️</button>
+                        </td>
+                    `;
                     historyTableBody.appendChild(row);
                 });
             }
             
-            function showToast() {
+            function showToast(message) {
+                toast.textContent = message;
                 toast.classList.remove('opacity-0');
                 setTimeout(() => { toast.classList.add('opacity-0'); }, 3000);
             }
@@ -251,12 +305,40 @@
                 try {
                     const workoutsCollectionPath = `users/${userId}/workouts`;
                     await addDoc(collection(db, workoutsCollectionPath), newEntry);
-                    showToast();
+                    showToast("Entrenamiento guardado!");
                     logForm.reset();
                     dateInput.valueAsDate = new Date();
                 } catch (error) {
                     console.error("Error al guardar el entrenamiento: ", error);
                     alert("No se pudo guardar el entrenamiento en la nube. Revisa tu conexión.");
+                }
+            });
+
+            historyTableBody.addEventListener('click', (e) => {
+                if (e.target.classList.contains('delete-btn')) {
+                    docIdToDelete = e.target.dataset.id;
+                    confirmationModal.classList.remove('hidden');
+                }
+            });
+
+            cancelDeleteBtn.addEventListener('click', () => {
+                docIdToDelete = null;
+                confirmationModal.classList.add('hidden');
+            });
+
+            confirmDeleteBtn.addEventListener('click', async () => {
+                if (docIdToDelete) {
+                    try {
+                        const docPath = `users/${userId}/workouts/${docIdToDelete}`;
+                        await deleteDoc(doc(db, docPath));
+                        showToast("Registro eliminado.");
+                    } catch (error) {
+                        console.error("Error al eliminar el documento: ", error);
+                        alert("No se pudo eliminar el registro.");
+                    } finally {
+                        docIdToDelete = null;
+                        confirmationModal.classList.add('hidden');
+                    }
                 }
             });
 
@@ -296,16 +378,43 @@
             });
 
             function setupChart() {
+                const isDark = document.body.classList.contains('dark');
+                const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+                const textColor = isDark ? '#e5e7eb' : '#374151';
+
                 const ctx = document.getElementById('progressChart').getContext('2d');
                 progressChart = new Chart(ctx, {
                     type: 'line',
-                    data: { labels: [], datasets: [{ label: 'Volumen de Carga (kg)', data: [], borderColor: '#1d4ed8', backgroundColor: 'rgba(29, 78, 216, 0.1)', borderWidth: 2, tension: 0.1, fill: true }] },
-                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(context) { return `Volumen: ${context.parsed.y} kg`; } } } } }
+                    data: { labels: [], datasets: [{ label: 'Volumen de Carga (kg)', data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.2)', borderWidth: 2, tension: 0.1, fill: true }] },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        scales: { 
+                            y: { 
+                                beginAtZero: true,
+                                grid: { color: gridColor },
+                                ticks: { color: textColor }
+                            },
+                            x: {
+                                grid: { color: gridColor },
+                                ticks: { color: textColor }
+                            }
+                        }, 
+                        plugins: { 
+                            legend: { display: false }, 
+                            tooltip: { 
+                                callbacks: { 
+                                    label: function(context) { return `Volumen: ${context.parsed.y} kg`; } 
+                                } 
+                            } 
+                        } 
+                    }
                 });
             }
 
             function updateProgressChart() {
                 const selectedExercise = chartSelect.value;
+                if (!progressChart) return;
                 if (!selectedExercise) {
                     progressChart.data.labels = [];
                     progressChart.data.datasets[0].data = [];
