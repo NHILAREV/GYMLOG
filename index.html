@@ -247,22 +247,32 @@
                      return;
                 }
 
-                try {
-                    const config = new Function(`return ${text}`)();
+                // PEGA ESTE NUEVO BLOQUE EN SU LUGAR
+try {
+    // 1. Usamos el método seguro JSON.parse()
+    const config = JSON.parse(text); 
 
-                    if (config && config.apiKey && config.projectId) {
-                        localStorage.setItem('firebaseConfig', JSON.stringify(config));
-                        configModal.classList.add('hidden');
-                        globalLoader.classList.remove('hidden');
-                        init();
-                    } else {
-                        throw new Error("The parsed object is missing required keys like 'apiKey' or 'projectId'.");
-                    }
-                } catch (e) {
-                    console.error("Config parsing error:", e);
-                    configError.textContent = "Could not parse the configuration. Please check for typos and paste the object again.";
-                    configError.classList.remove('hidden');
-                }
+    console.log("Este es el objeto que se ha parseado:", config);
+
+    // 2. Verificamos que las propiedades necesarias existan
+    if (config && config.apiKey && config.projectId) {
+        console.log("Validación exitosa! Guardando configuración...");
+        localStorage.setItem('firebaseConfig', JSON.stringify(config));
+        configModal.classList.add('hidden');
+        globalLoader.classList.remove('hidden');
+        init();
+    } else {
+        // Si al objeto le faltan propiedades, este error aparecerá
+        console.error("Error de validación: Al objeto le faltan 'apiKey' o 'projectId'.");
+        configError.textContent = "La configuración parece válida pero le faltan claves esenciales como 'apiKey' o 'projectId'.";
+        configError.classList.remove('hidden');
+    }
+} catch (e) {
+    // Si el texto no es un JSON válido, este error aparecerá
+    console.error("Error de parseo JSON:", e);
+    configError.textContent = "El texto que pegaste no es un formato JSON válido. Revisa si hay comas o comillas faltantes.";
+    configError.classList.remove('hidden');
+}
             });
 
             function setupRealtimeListener() {
